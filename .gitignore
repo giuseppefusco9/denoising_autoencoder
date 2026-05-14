@@ -14,3 +14,4 @@ __pycache__/
 # File CSV di output (opzionale, toglilo se vuoi caricare i risultati)
 results_*/
 *.csv
+ckpts/
