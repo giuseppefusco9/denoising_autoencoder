@@ -2,50 +2,23 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
-import torchvision.models as models
 import os
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Importiamo il dataloader e il modello
 from loader_dataset import WatermarkDenoisingDataset
 from conv_ae_model import ConvAutoencoderDenoise
 
 # ==========================================
-# 1. DEFINIZIONE DELLA PERCEPTUAL LOSS
-# ==========================================
-class VGGPerceptualLoss(nn.Module):
-    def __init__(self):
-        super(VGGPerceptualLoss, self).__init__()
-        vgg = models.vgg16(weights=models.VGG16_Weights.DEFAULT).features[:16].eval()
-        
-        for param in vgg.parameters():
-            param.requires_grad = False
-            
-        self.vgg = vgg
-        self.l1_loss = nn.L1Loss()
-        self.mse_loss = nn.MSELoss()
-        
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
-
-    def forward(self, pred, target):
-        loss_pixel = self.l1_loss(pred, target)
-        
-        pred_norm = (pred - self.mean) / self.std
-        target_norm = (target - self.mean) / self.std
-        
-        pred_features = self.vgg(pred_norm)
-        target_features = self.vgg(target_norm)
-        
-        loss_perceptual = self.mse_loss(pred_features, target_features)
-        
-        return loss_pixel + 0.1 * loss_perceptual
-
-# ==========================================
-# 2. CONFIGURAZIONE HARDWARE (raptor01)
+# 1. CONFIGURAZIONE HARDWARE E PARAMETRI
 # ==========================================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 num_gpus = torch.cuda.device_count()
 
 print("="*50)
 print(f"Dispositivo Principale: {device}")
+print("="*50)
 
 BATCH_SIZE = 32      
 EPOCHS = 60          
@@ -53,7 +26,7 @@ LEARNING_RATE = 2e-4
 CROP_SIZE = 256      
 
 # ==========================================
-# 3. PREPARAZIONE DATI
+# 2. PREPARAZIONE DATI
 # ==========================================
 print("Caricamento dataset in corso...")
 dataset_completo = WatermarkDenoisingDataset(root_dir="dataset", crop_size=CROP_SIZE)
@@ -67,10 +40,10 @@ val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_w
 print(f"Dati: {train_size} Train | {val_size} Val.")
 
 # ==========================================
-# 4. INIZIALIZZAZIONE DEL TUO MODELLO
+# 3. INIZIALIZZAZIONE MODELLO E LOSS MSE
 # ==========================================
 model = ConvAutoencoderDenoise(in_channels=3, out_channels=3).to(device)
-criterion = VGGPerceptualLoss().to(device)
+criterion = nn.MSELoss().to(device)
 
 if num_gpus > 1:
     model = nn.DataParallel(model)
@@ -81,9 +54,15 @@ optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 os.makedirs("checkpoints", exist_ok=True)
 
 # ==========================================
+# 4. STORICO DEL TRAINING (Le nostre liste History)
+# ==========================================
+train_loss_history = []
+val_loss_history = []
+
+# ==========================================
 # 5. TRAINING LOOP
 # ==========================================
-print("\nInizio Addestramento Convolutional Autoencoder...\n")
+print("\nInizio Addestramento con Loss MSE...\n")
 
 best_val_loss = float('inf')
 
@@ -98,8 +77,8 @@ for epoch in range(EPOCHS):
         optimizer.zero_grad()
         
         reconstructed_imgs = model(wm_imgs)
-        
         loss = criterion(reconstructed_imgs, clean_imgs)
+        
         if num_gpus > 1:
             loss = loss.mean()
             
@@ -109,6 +88,7 @@ for epoch in range(EPOCHS):
         train_loss += loss.item()
         
     avg_train_loss = train_loss / len(train_loader)
+    train_loss_history.append(avg_train_loss)
     
     # --- VALIDAZIONE ---
     model.eval()
@@ -125,15 +105,51 @@ for epoch in range(EPOCHS):
             val_loss += loss.item()
             
     avg_val_loss = val_loss / len(val_loader)
+    val_loss_history.append(avg_val_loss)
     
     print(f"Epoca [{epoch+1}/{EPOCHS}] | Train Loss: {avg_train_loss:.5f} | Val Loss: {avg_val_loss:.5f}")
     
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
-        
         state_dict_to_save = model.module.state_dict() if num_gpus > 1 else model.state_dict()
-        torch.save(state_dict_to_save, "checkpoints/convae_best_model.pth")
-        
-        print(" Nuovo record Percettivo! Modello salvato.")
+        torch.save(state_dict_to_save, "checkpoints/convae_mse_best.pth")
+        print("   🌟 Nuovo record MSE! Modello salvato.")
 
-print("\nAddestramento Completato. Pronto per il Test!")
+print("\n✅ Addestramento Completato.")
+
+# ==========================================
+# 6. SALVATAGGIO SUMMARY (File CSV)
+# ==========================================
+print("\nSalvataggio del Summary in corso...")
+summary_df = pd.DataFrame({
+    "Epoca": range(1, EPOCHS + 1),
+    "Train_Loss": train_loss_history,
+    "Val_Loss": val_loss_history
+})
+summary_file = "checkpoints/convae_mse_summary.csv"
+summary_df.to_csv(summary_file, index=False, sep=";")
+print(f"Summary salvato con successo in: {summary_file}")
+
+# ==========================================
+# 7. GENERAZIONE E SALVATAGGIO GRAFICO (Stile Notebook)
+# ==========================================
+print("Generazione del grafico della Loss...")
+fig, ax1 = plt.subplots(figsize=(10, 8))
+
+line1, = ax1.plot(range(1, EPOCHS + 1), train_loss_history, label='train_loss', color='orange')
+ax1.plot(range(1, EPOCHS + 1), val_loss_history, label='val_loss', color=line1.get_color(), linestyle='--')
+
+ax1.set_xlim([1, EPOCHS])
+ax1.set_ylim([0, max(max(train_loss_history), max(val_loss_history)) * 1.1]) 
+ax1.set_ylabel('Loss', color=line1.get_color())
+ax1.tick_params(axis='y', labelcolor=line1.get_color())
+ax1.set_xlabel('Epochs')
+ax1.grid(True, linestyle=":")
+ax1.legend(loc='upper right')
+ax1.set_title('Andamento della Loss (MSE) - ConvAutoencoder')
+
+plot_file = "checkpoints/convae_mse_loss_plot.png"
+plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+plt.close()
+print(f"Grafico salvato con successo in: {plot_file}")
+print("="*50)

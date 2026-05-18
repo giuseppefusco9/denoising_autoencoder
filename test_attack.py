@@ -11,9 +11,11 @@ from conv_ae_model import ConvAutoencoderDenoise
 # 1. CONFIGURAZIONE DEL TEST
 # ==========================================
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-INPUT_DIR = "dataset"
-OUTPUT_DIR = "results_convae"
-CSV_FILE = "risultati_convae_raptor.csv"
+
+INPUT_DIR = "dataset_minSize/test" 
+
+OUTPUT_DIR = "results_convae_mse"
+CSV_FILE = "risultati_convae_mse_raptor.csv"
 msg_size = 256
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -21,10 +23,11 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # ==========================================
 # 2. CARICAMENTO E PULIZIA PESI MULTI-GPU
 # ==========================================
-print("🔄 Caricamento ConvAutoencoder su raptor01...")
+print("Caricamento ConvAutoencoder su raptor01...")
 model = ConvAutoencoderDenoise(in_channels=3, out_channels=3).to(device)
 
-state_dict = torch.load("checkpoints/convae_best_model.pth", map_location=device, weights_only=True)
+# Carichiamo i pesi addestrati
+state_dict = torch.load("checkpoints/convae_mse_best.pth", map_location=device, weights_only=True)
 
 from collections import OrderedDict
 new_state_dict = OrderedDict()
@@ -35,7 +38,7 @@ for k, v in state_dict.items():
 model.load_state_dict(new_state_dict)
 model.eval()
 
-print("🛡️ Caricamento PixelSeal per la verifica...")
+print("Caricamento PixelSeal per la verifica...")
 pixelseal = videoseal.load("pixelseal").eval()
 
 # ==========================================
@@ -56,7 +59,7 @@ for c_file in clean_files:
 
 results = []
 
-print(f"🚀 Inizio test su {len(valid_pairs)} immagini...")
+print(f"Inizio test su {len(valid_pairs)} immagini...")
 
 for idx, (clean_name, wm_name) in enumerate(valid_pairs):
     print(f"--- Processing [{idx+1}/{len(valid_pairs)}]: {clean_name} ---")
@@ -65,6 +68,7 @@ for idx, (clean_name, wm_name) in enumerate(valid_pairs):
     img_wm = Image.open(wm_path).convert("RGB")
     w, h = img_wm.size
     
+    # Padding a multipli di 16 per i MaxPool2d
     new_w, new_h = math.ceil(w/16)*16, math.ceil(h/16)*16
     img_tensor = F.to_tensor(F.pad(img_wm, (0, 0, new_w-w, new_h-h), padding_mode='reflect')).unsqueeze(0).to(device)
     
@@ -81,6 +85,7 @@ for idx, (clean_name, wm_name) in enumerate(valid_pairs):
         
         bit_acc = (bits_after == bits_before).sum().item() / msg_size
 
+    # Salviamo l'immagine tagliando via il padding aggiunto
     final_img = F.to_pil_image(cleaned_tensor[0, :, :h, :w].cpu())
     final_img.save(os.path.join(OUTPUT_DIR, f"cleaned_{clean_name}"))
     
@@ -93,8 +98,9 @@ for idx, (clean_name, wm_name) in enumerate(valid_pairs):
         "wm presence (logit c0)": round(logit_after, 4)
     })
     
+    # Ricreiamo gli stati per il grafico (Pulita e Watermarked fittizie per l'istogramma)
     results.append({"nomeImg": clean_name, "modello usato": "pixelseal", "categoria": "img_dirette", "stato": "Pulita", "bit accuracy": 0.5, "wm presence (logit c0)": -5.0})
     results.append({"nomeImg": clean_name, "modello usato": "pixelseal", "categoria": "img_dirette", "stato": "Watermarked", "bit accuracy": 1.0, "wm presence (logit c0)": logit_before})
 
 pd.DataFrame(results).to_csv(CSV_FILE, index=False, sep=';')
-print(f"\n✅ Test completato! CSV salvato in {CSV_FILE}")
+print(f"\nTest completato! CSV salvato in {CSV_FILE}")
