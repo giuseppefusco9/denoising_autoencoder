@@ -35,7 +35,7 @@ val_dataset = WatermarkDenoisingDataset(root_dir="dataset_minSize/val", crop_siz
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True)
 
-print(f"✅ Dati Caricati: {len(train_dataset)} Train | {len(val_dataset)} Val.")
+print(f"Dati Caricati: {len(train_dataset)} Train | {len(val_dataset)} Val.")
 
 # ==========================================
 # 3. INIZIALIZZAZIONE MODELLO E LOSS MSE
@@ -111,9 +111,9 @@ for epoch in range(EPOCHS):
         best_val_loss = avg_val_loss
         state_dict_to_save = model.module.state_dict() if num_gpus > 1 else model.state_dict()
         torch.save(state_dict_to_save, "checkpoints/convae_mse_best.pth")
-        print("   🌟 Nuovo record MSE! Modello salvato.")
+        print("Nuovo record: Modello salvato.")
 
-print("\n✅ Addestramento Completato.")
+print("\nAddestramento Completato.")
 
 # ==========================================
 # 6. SALVATAGGIO SUMMARY (File CSV)
