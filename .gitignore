@@ -3,7 +3,6 @@ venv/
 .env
 
 # Cartelle dati e pesi dei modelli
-dataset/
 checkpoints/
 
 # File temporanei di Python e Mac
