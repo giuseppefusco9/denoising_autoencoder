@@ -44,7 +44,7 @@ class ConvAutoencoderDenoise(nn.Module):
 # TEST DEL MODELLO
 # ==========================================
 if __name__ == "__main__":
-    # Creiamo un tensore "finto" per simulare un batch di 4 immagini 256x256 RGB
+    # tensore "finto" per simulare un batch di 4 immagini 256x256 RGB
     dummy_input = torch.randn(4, 3, 256, 256)
     
     modello = ConvAutoencoderDenoise()
@@ -52,4 +52,4 @@ if __name__ == "__main__":
     
     print(f"Formato Input: {dummy_input.shape}")
     print(f"Formato Output: {output.shape}")
-    print("Modello Convolutional Autoencoder (stile Notebook) inizializzato con successo!")
+    print("Modello Convolutional Autoencoder inizializzato con successo!")

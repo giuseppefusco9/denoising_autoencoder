@@ -13,7 +13,6 @@ from conv_ae_model import ConvAutoencoderDenoise
 class VGGPerceptualLoss(nn.Module):
     def __init__(self):
         super(VGGPerceptualLoss, self).__init__()
-        # Carichiamo i primi strati della VGG16
         vgg = models.vgg16(weights=models.VGG16_Weights.DEFAULT).features[:16].eval()
         
         for param in vgg.parameters():
@@ -23,7 +22,6 @@ class VGGPerceptualLoss(nn.Module):
         self.l1_loss = nn.L1Loss()
         self.mse_loss = nn.MSELoss()
         
-        # register_buffer per compatibilità Multi-GPU
         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
 
@@ -71,7 +69,6 @@ print(f"Dati: {train_size} Train | {val_size} Val.")
 # ==========================================
 # 4. INIZIALIZZAZIONE DEL TUO MODELLO
 # ==========================================
-# Inizializziamo il ConvAutoencoderDenoise invece della U-Net
 model = ConvAutoencoderDenoise(in_channels=3, out_channels=3).to(device)
 criterion = VGGPerceptualLoss().to(device)
 
@@ -135,7 +132,6 @@ for epoch in range(EPOCHS):
         best_val_loss = avg_val_loss
         
         state_dict_to_save = model.module.state_dict() if num_gpus > 1 else model.state_dict()
-        # Salviamo il file con un NOME DIVERSO per non sovrascrivere la U-Net
         torch.save(state_dict_to_save, "checkpoints/convae_best_model.pth")
         
         print(" Nuovo record Percettivo! Modello salvato.")
