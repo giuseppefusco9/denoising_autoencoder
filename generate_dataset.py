@@ -67,29 +67,36 @@ def main():
                 clean_save_path = os.path.join(clean_out_dir, crop_filename)
                 cropped_img.save(clean_save_path)
                 
+                # Tensore in ingresso [1, 3, min_size, min_size]
                 img_tensor = TF.to_tensor(cropped_img).unsqueeze(0).to(DEVICE)
                 
                 with torch.no_grad():
                     embed_result = pixelseal.embed(img_tensor)
                     
-                    # Gestione Robusta dell'Output
+                    wm_tensor = None
+                    
+                    # ----------------------------------------------------
+                    # ESTRAZIONE DELL'OUTPUT
+                    # ----------------------------------------------------
                     if isinstance(embed_result, dict):
-                        # Caso 1: È un dizionario, estraiamo 'imgs'
-                        if "imgs" in embed_result:
-                             wm_output = embed_result["imgs"]
-                        else:
-                             raise ValueError("Il modello ha restituito un dict senza la chiave 'imgs'")
+                        # Cerca dinamicamente un tensore con le stesse dimensioni dell'input
+                        for key, value in embed_result.items():
+                            if isinstance(value, torch.Tensor) and value.shape == img_tensor.shape:
+                                wm_tensor = value
+                                break
+                            elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], torch.Tensor):
+                                wm_tensor = value[0]
+                                break
+                        
+                        if wm_tensor is None:
+                            raise ValueError(f"Tensore non trovato! Chiavi generate da Meta: {list(embed_result.keys())}")
+                            
+                    elif isinstance(embed_result, torch.Tensor):
+                        wm_tensor = embed_result
+                    elif isinstance(embed_result, list):
+                        wm_tensor = embed_result[0]
                     else:
-                        # Caso 2: Ha restituito direttamente il tensore (o lista)
-                        wm_output = embed_result
-                    
-                    
-                    if isinstance(wm_output, list):
-                        wm_tensor = wm_output[0] # Estrae il tensore dalla lista
-                    elif isinstance(wm_output, torch.Tensor):
-                         wm_tensor = wm_output
-                    else:
-                        raise TypeError(f"Formato output inatteso: {type(wm_output)}")
+                        raise TypeError(f"Formato output inatteso: {type(embed_result)}")
 
                 # Assicuriamoci di rimuovere la dimensione batch [1, C, H, W] -> [C, H, W]
                 if wm_tensor.dim() == 4 and wm_tensor.shape[0] == 1:
