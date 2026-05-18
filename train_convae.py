@@ -29,15 +29,13 @@ CROP_SIZE = 256
 # 2. PREPARAZIONE DATI
 # ==========================================
 print("Caricamento dataset in corso...")
-dataset_completo = WatermarkDenoisingDataset(root_dir="dataset", crop_size=CROP_SIZE)
-
-train_size = int(0.8 * len(dataset_completo))
-val_size = len(dataset_completo) - train_size
-train_dataset, val_dataset = random_split(dataset_completo, [train_size, val_size])
+train_dataset = WatermarkDenoisingDataset(root_dir="dataset_minSize/train", crop_size=CROP_SIZE)
+val_dataset = WatermarkDenoisingDataset(root_dir="dataset_minSize/val", crop_size=CROP_SIZE)
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True)
-print(f"Dati: {train_size} Train | {val_size} Val.")
+
+print(f"✅ Dati Caricati: {len(train_dataset)} Train | {len(val_dataset)} Val.")
 
 # ==========================================
 # 3. INIZIALIZZAZIONE MODELLO E LOSS MSE
