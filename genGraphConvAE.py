@@ -4,7 +4,7 @@ import seaborn as sns
 import matplotlib.patches as mpatches  # <--- Importante per la legenda custom
 
 # Usa il file generato dallo script di test della U-Net
-NOME_FILE_CSV = "risultati_watermark_UNET.csv"
+NOME_FILE_CSV = "risultati_convae_raptor.csv"
 print(f"Lettura dati da {NOME_FILE_CSV}...")
 df = pd.read_csv(NOME_FILE_CSV, sep=';')
 
@@ -33,9 +33,9 @@ sns.histplot(
 )
 
 # Aggiorniamo il nome dell'attacco per il titolo e il file
-NOME_ATTACCO = "U-Net Denoising"
+NOME_ATTACCO = "ConvAE Denoising"
 
-plt.title(f'Istogramma Bit Accuracy: Immagini Pulite, Watermarked e Post U-Net', fontsize=15, pad=15)
+plt.title(f'Istogramma Bit Accuracy: Immagini Pulite, Watermarked e Post ConvAE', fontsize=15, pad=15)
 plt.xlabel('Bit Accuracy (0.0 = 0%, 1.0 = 100%)', fontsize=12)
 plt.ylabel('Numero di Immagini', fontsize=12)
 
@@ -45,7 +45,7 @@ plt.ylabel('Numero di Immagini', fontsize=12)
 legend_elements = [
     mpatches.Patch(facecolor='limegreen', edgecolor='black', alpha=0.9, label='Pulita (Originale, Riferimento)'),
     mpatches.Patch(facecolor='dodgerblue', edgecolor='black', alpha=0.9, label='Watermarked (Segnale Intatto al 100%)'),
-    mpatches.Patch(facecolor='crimson', edgecolor='black', alpha=0.9, label='Post U-Net (Ripulita dall\'Autoencoder)')
+    mpatches.Patch(facecolor='crimson', edgecolor='black', alpha=0.9, label='Post ConvAE (Ripulita dall\'Autoencoder)')
 ]
 
 # Inseriamo la legenda dentro il grafico in alto a sinistra
