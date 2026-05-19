@@ -7,7 +7,7 @@ model = ConvAutoencoderDenoise(in_channels=3, out_channels=3)
 
 # 2. Definisci la grandezza di un'immagine in input finta (Batch, Canali, Altezza, Larghezza)
 # Usa la dimensione effettiva a cui hai ritagliato il tuo dataset, ad esempio 256x256
-dimensione_input = (1, 3, 256, 256)
+dimensione_input = (4, 3, 256, 256)
 
 print("\n" + "="*60)
 print(" SUMMARY DELL'AUTOENCODER (STILE KERAS)")
