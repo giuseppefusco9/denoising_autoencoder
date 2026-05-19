@@ -10,7 +10,7 @@ model = ConvAutoencoderDenoise(in_channels=3, out_channels=3)
 dimensione_input = (4, 3, 256, 256)
 
 print("\n" + "="*60)
-print(" SUMMARY DELL'AUTOENCODER (STILE KERAS)")
+print(" SUMMARY DELL'AUTOENCODER ")
 print("="*60)
 
 # 3. Genera e stampa la tabella esatta
