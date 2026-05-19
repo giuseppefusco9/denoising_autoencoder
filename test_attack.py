@@ -64,43 +64,76 @@ print(f"Inizio test su {len(valid_pairs)} immagini...")
 for idx, (clean_name, wm_name) in enumerate(valid_pairs):
     print(f"--- Processing [{idx+1}/{len(valid_pairs)}]: {clean_name} ---")
     wm_path = os.path.join(wm_dir, wm_name)
+    clean_path = os.path.join(clean_dir, clean_name)
     
+    # Carichiamo ENTRAMBE le immagini (Pulita e Watermarked)
     img_wm = Image.open(wm_path).convert("RGB")
+    img_clean = Image.open(clean_path).convert("RGB")
+    
     w, h = img_wm.size
     
     # Padding a multipli di 16 per i MaxPool2d
     new_w, new_h = math.ceil(w/16)*16, math.ceil(h/16)*16
-    img_tensor = F.to_tensor(F.pad(img_wm, (0, 0, new_w-w, new_h-h), padding_mode='reflect')).unsqueeze(0).to(device)
+    img_wm_tensor = F.to_tensor(F.pad(img_wm, (0, 0, new_w-w, new_h-h), padding_mode='reflect')).unsqueeze(0).to(device)
+    img_clean_tensor = F.to_tensor(F.pad(img_clean, (0, 0, new_w-w, new_h-h), padding_mode='reflect')).unsqueeze(0).to(device)
     
     with torch.no_grad():
-        det_before = pixelseal.detect(img_tensor.cpu())
+        # --- A. Analisi REALE Immagine Pulita ---
+        det_clean = pixelseal.detect(img_clean_tensor.cpu())
+        logit_clean = det_clean["preds"][:, 0].item()
+        bits_clean = (det_clean["preds"][:, 1:] > 0).float()
+        
+        # --- B. Analisi REALE Immagine Watermarked ---
+        det_before = pixelseal.detect(img_wm_tensor.cpu())
         logit_before = det_before["preds"][:, 0].item()
         bits_before = (det_before["preds"][:, 1:] > 0).float()
         
-        cleaned_tensor = model(img_tensor)
+        # --- C. Esecuzione Attacco ---
+        cleaned_tensor = model(img_wm_tensor)
         
+        # --- D. Analisi REALE Immagine Attaccata ---
         det_after = pixelseal.detect(cleaned_tensor.cpu())
         logit_after = det_after["preds"][:, 0].item()
         bits_after = (det_after["preds"][:, 1:] > 0).float()
         
-        bit_acc = (bits_after == bits_before).sum().item() / msg_size
+        # Calcolo Bit Accuracy Reali (usando i bit estratti dall'immagine WM come ground truth)
+        bit_acc_clean = (bits_clean == bits_before).sum().item() / msg_size
+        bit_acc_before = (bits_before == bits_before).sum().item() / msg_size # Logicamente 1.0, ma calcolato
+        bit_acc_after = (bits_after == bits_before).sum().item() / msg_size
 
     # Salviamo l'immagine tagliando via il padding aggiunto
     final_img = F.to_pil_image(cleaned_tensor[0, :, :h, :w].cpu())
     final_img.save(os.path.join(OUTPUT_DIR, f"cleaned_{clean_name}"))
     
+    # --------------------------------------------------
+    # SALVATAGGIO DEI DATI 100% REALI
+    # --------------------------------------------------
+    results.append({
+        "nomeImg": clean_name,
+        "modello usato": "pixelseal",
+        "categoria": "img_dirette",
+        "stato": "Pulita",
+        "bit accuracy": round(bit_acc_clean, 4),
+        "wm presence (logit c0)": round(logit_clean, 4)
+    })
+
+    results.append({
+        "nomeImg": clean_name,
+        "modello usato": "pixelseal",
+        "categoria": "img_dirette",
+        "stato": "Watermarked",
+        "bit accuracy": round(bit_acc_before, 4),
+        "wm presence (logit c0)": round(logit_before, 4)
+    })
+
     results.append({
         "nomeImg": clean_name,
         "modello usato": "pixelseal",
         "categoria": "img_dirette",
         "stato": "Attaccata",
-        "bit accuracy": round(bit_acc, 4),
+        "bit accuracy": round(bit_acc_after, 4),
         "wm presence (logit c0)": round(logit_after, 4)
     })
-    
-    # Ricreiamo gli stati per il grafico (Pulita e Watermarked fittizie per l'istogramma)
-    results.append({"nomeImg": clean_name, "modello usato": "pixelseal", "categoria": "img_dirette", "stato": "Pulita", "bit accuracy": 0.5, "wm presence (logit c0)": -5.0})
-    results.append({"nomeImg": clean_name, "modello usato": "pixelseal", "categoria": "img_dirette", "stato": "Watermarked", "bit accuracy": 1.0, "wm presence (logit c0)": logit_before})
 
 pd.DataFrame(results).to_csv(CSV_FILE, index=False, sep=';')
 print(f"\nTest completato! CSV salvato in {CSV_FILE}")
